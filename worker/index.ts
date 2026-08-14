@@ -1,14 +1,16 @@
 /**
- * Cloudflare Worker — 26-riu-cfg-bid
- * Workers (ES Module) + D1 + R2. No Pages hosting.
+ * Cloudflare Worker — allworld
+ * 多站点 R2 静态托管 + 26-riu-cfg-bid (D1/R2/ASSETS) 主机分流
  */
 
 export interface Env {
   DB: D1Database
   STORAGE: R2Bucket
+  SITES: R2Bucket
   ASSETS: Fetcher
   PROJECT_SLUG: string
   DEPLOYMENT_HOST: string
+  ROOT_DOMAIN: string
 }
 
 type Role = 'GUEST' | 'AUDITOR' | 'AVIONICS_ADMIN'
@@ -544,24 +546,176 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   return json({ ok: false, error: `Unknown API route: ${method} ${path}` }, 404)
 }
 
+function siteIdFromHost(hostname: string, rootDomain: string): string {
+  const host = hostname.toLowerCase()
+  const root = rootDomain.toLowerCase()
+  if (host === root) return '_root'
+  if (host === `www.${root}`) return 'www'
+  if (host.endsWith(`.${root}`)) return host.slice(0, -(root.length + 1))
+  return host
+}
+
+function isRiuHost(hostname: string, env: Env): boolean {
+  const host = hostname.toLowerCase()
+  const root = (env.ROOT_DOMAIN || 'softwarelink.net').toLowerCase()
+  const slug = (env.PROJECT_SLUG || '26-riu-cfg-bid').toLowerCase()
+  return host === `${slug}.${root}` || host.startsWith(`${slug}.`)
+}
+
+function contentTypeFor(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  const map: Record<string, string> = {
+    html: 'text/html; charset=utf-8',
+    js: 'application/javascript; charset=utf-8',
+    css: 'text/css; charset=utf-8',
+    json: 'application/json; charset=utf-8',
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    ico: 'image/x-icon',
+    txt: 'text/plain; charset=utf-8',
+    map: 'application/json',
+    xml: 'application/xml; charset=utf-8',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+  }
+  return map[ext] || 'application/octet-stream'
+}
+
+function emptySitePage(siteId: string): Response {
+  if (siteId === '_root' || siteId === 'www') {
+    const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>allworld · softwarelink.net</title>
+  <style>
+    :root { --ink:#0f172a; --muted:#64748b; --bg:#f8fafc; }
+    body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; color:var(--ink);
+      background: radial-gradient(1000px 500px at 0% 0%,#e0f2fe,transparent 55%),
+                  radial-gradient(800px 400px at 100% 0%,#fef3c7,transparent 50%), var(--bg);
+      min-height:100vh; }
+    main { max-width:42rem; margin:0 auto; padding:4rem 1.25rem; }
+    h1 { font-size:clamp(2rem,5vw,3rem); letter-spacing:-0.04em; margin:0 0 .75rem; }
+    p,li { color:var(--muted); line-height:1.7; }
+    code { background:#e2e8f0; padding:.15em .4em; border-radius:4px; font-size:.92em; }
+    a { color:#0284c7; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>allworld</h1>
+    <p>softwarelink.net 多站点边缘托管入口（Worker <code>allworld</code> + R2 <code>allworld-sites</code>）。</p>
+    <ul>
+      <li>子域站点：<code>{site}.softwarelink.net</code> → R2 前缀 <code>{site}/</code></li>
+      <li>RIU 招标门户：<a href="https://26-riu-cfg-bid.softwarelink.net/">26-riu-cfg-bid.softwarelink.net</a></li>
+    </ul>
+  </main>
+</body>
+</html>`
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${siteId}</title>
+  <style>
+    body { margin:0; font-family:system-ui,sans-serif; background:#f8fafc; color:#0f172a;
+      min-height:100vh; display:grid; place-items:center; }
+    main { max-width:36rem; padding:2rem; }
+    h1 { margin:0 0 .5rem; letter-spacing:-0.03em; }
+    p { color:#64748b; line-height:1.6; }
+    code { background:#e2e8f0; padding:.1em .35em; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${siteId}</h1>
+    <p>R2 尚无静态文件。上传 <code>dist/</code> 或 <code>PUT /index.html</code>。</p>
+    <p>演示数据：<code>PUT /api/data/demo</code></p>
+  </main>
+</body>
+</html>`
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+}
+
+async function serveR2Site(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const siteId = siteIdFromHost(url.hostname, env.ROOT_DOMAIN || 'softwarelink.net')
+
+  // Minimal platform API stubs used by other sites' tooling
+  if (url.pathname === '/api/data/demo' && request.method === 'PUT') {
+    return json({ ok: true, site: siteId, message: 'demo accepted' })
+  }
+  if (url.pathname.startsWith('/api/')) {
+    return json({ ok: false, error: 'Not Found' }, 404)
+  }
+
+  let pathname = decodeURIComponent(url.pathname)
+  if (pathname.endsWith('/')) pathname += 'index.html'
+  if (pathname === '') pathname = '/index.html'
+
+  const candidates = [
+    `${siteId}${pathname}`,
+    `${siteId}${pathname}.html`,
+    `${siteId}${pathname}/index.html`,
+    `${siteId}/index.html`,
+  ]
+
+  for (const key of candidates) {
+    const obj = await env.SITES.get(key)
+    if (!obj) continue
+    const headers = new Headers()
+    headers.set('Content-Type', obj.httpMetadata?.contentType || contentTypeFor(key))
+    if (obj.httpEtag) headers.set('ETag', obj.httpEtag)
+    return new Response(obj.body, { headers })
+  }
+
+  // SPA fallback: if site has index.html, serve it for extensionless paths
+  if (!pathname.split('/').pop()?.includes('.')) {
+    const indexObj = await env.SITES.get(`${siteId}/index.html`)
+    if (indexObj) {
+      return new Response(indexObj.body, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    }
+  }
+
+  return emptySitePage(siteId)
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
-    if (url.pathname.startsWith('/api/')) {
-      try {
-        return await handleApi(request, env, url)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Internal error'
-        return json({ ok: false, error: message }, 500)
+    // RIU portal (API + Workers Assets SPA)
+    if (isRiuHost(url.hostname, env)) {
+      if (url.pathname.startsWith('/api/')) {
+        try {
+          return await handleApi(request, env, url)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Internal error'
+          return json({ ok: false, error: message }, 500)
+        }
       }
+      if (env.ASSETS) {
+        return env.ASSETS.fetch(request)
+      }
+      return new Response('ASSETS binding not configured', { status: 500 })
     }
 
-    // Serve static assets (SPA)
-    if (env.ASSETS) {
-      return env.ASSETS.fetch(request)
+    // Other softwarelink.net sites → allworld-sites R2
+    try {
+      return await serveR2Site(request, env)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Internal error'
+      return json({ ok: false, error: message }, 500)
     }
-
-    return new Response('ASSETS binding not configured', { status: 500 })
   },
 }
