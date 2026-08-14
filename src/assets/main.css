@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --banner-h: 40px;
+  --hud-cyan: #38bdf8;
+  --hud-panel: #111827;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(14, 165, 233, 0.08), transparent 50%),
+    #0b1220;
+}
+
+.app-shell {
+  padding-top: var(--banner-h);
+  min-height: 100vh;
+}
+
+.hud-panel {
+  @apply bg-hud-panel/90 border border-hud-border rounded-lg shadow-hud backdrop-blur-sm;
+}
+
+.hud-label {
+  @apply text-[11px] uppercase tracking-[0.14em] text-slate-400 font-semibold;
+}
+
+.btn-primary {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium transition;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-700 hover:border-sky-500/50 hover:bg-slate-800/60 text-slate-200 text-sm transition;
+}
+
+.code-block {
+  @apply font-mono text-xs leading-relaxed bg-black/40 border border-slate-800 rounded-md p-4 overflow-auto text-emerald-300;
+}
+
+.hex-block {
+  @apply font-mono text-[11px] leading-relaxed bg-black/50 border border-slate-800 rounded-md p-4 overflow-auto text-amber-200 whitespace-pre;
+}

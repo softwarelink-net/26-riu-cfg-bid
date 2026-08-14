@@ -1,0 +1,34 @@
+name = "26-riu-cfg-bid"
+main = "worker/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# 必须比区域通配路由 *.softwarelink.net/* (allworld) 更具体，否则会被 R2 占位页截获
+[[routes]]
+pattern = "26-riu-cfg-bid.softwarelink.net/*"
+zone_name = "softwarelink.net"
+
+[[routes]]
+pattern = "26-riu-cfg-bid.softwarelink.net"
+custom_domain = true
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "Allworld"
+database_id = "502e9e5d-e221-480c-a2a8-20c618fe7688"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "26-riu-cfg-bid-storage"
+
+[vars]
+PROJECT_SLUG = "26-riu-cfg-bid"
+DEPLOYMENT_HOST = "https://26-riu-cfg-bid.softwarelink.net/"
