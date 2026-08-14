@@ -2,7 +2,9 @@
 
 - **上线主域名**: [https://26-riu-cfg-bid.softwarelink.net/](https://26-riu-cfg-bid.softwarelink.net/)
 - **代码仓库**: [https://github.com/softwarelink-net/26-riu-cfg-bid](https://github.com/softwarelink-net/26-riu-cfg-bid)
-- **Dashboard 预览图**: `./docs/screenshots/dashboard-preview.png`
+- **Dashboard 预览图**:
+
+![Dashboard 预览图](./docs/screenshots/dashboard-preview.png)
 
 ---
 
