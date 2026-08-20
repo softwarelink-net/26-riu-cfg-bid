@@ -1,24 +1,15 @@
-name = "allworld"
+name = "26-riu-cfg-bid"
 main = "worker/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# 共享多站点入口：通配子域由 allworld 托管；RIU 站点走同 Worker 内主机分流
 [[routes]]
-pattern = "*.softwarelink.net/*"
+pattern = "26-riu-cfg-bid.softwarelink.net/*"
 zone_name = "softwarelink.net"
 
 [[routes]]
 pattern = "26-riu-cfg-bid.softwarelink.net"
-custom_domain = true
-
-[[routes]]
-pattern = "softwarelink.net"
-custom_domain = true
-
-[[routes]]
-pattern = "www.softwarelink.net"
 custom_domain = true
 
 [assets]
@@ -37,11 +28,6 @@ migrations_dir = "migrations"
 binding = "STORAGE"
 bucket_name = "26-riu-cfg-bid-storage"
 
-[[r2_buckets]]
-binding = "SITES"
-bucket_name = "allworld-sites"
-
 [vars]
 PROJECT_SLUG = "26-riu-cfg-bid"
 DEPLOYMENT_HOST = "https://26-riu-cfg-bid.softwarelink.net/"
-ROOT_DOMAIN = "softwarelink.net"

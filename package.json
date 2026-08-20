@@ -12,6 +12,7 @@
     "db:seed": "wrangler d1 migrations apply Allworld --local",
     "db:migrate:remote": "wrangler d1 migrations apply Allworld --remote",
     "deploy": "npm run build && wrangler deploy",
+    "sitemap:upload": "node scripts/upload-sitemap-r2.mjs",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
